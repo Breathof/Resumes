@@ -1,0 +1,126 @@
+In current versions of Windows,
+each application runs in its own process. A process isolates an application from other applications by giving it its own virtual memory and by ensuring that different processes can’t influence each other. Each process runs in its own thread. A thread is something like a virtualized
+CPU. If an application crashes or hits an infinite loop, only the application’s process is affected.
+
+Windows must manage all of the threads to ensure they can do their work. Each thread is allowed by Windows to execute for a certain time period. After this period ends, the thread is paused and Windows switches to
+another thread. This is called context switching. The current thread is using a certain area of memory; it uses CPU registers and other state data, and
+Windows has to make sure that the whole context of the thread is saved and restored on each
+switch.
+
+Y you can create an application that uses parallelism, meaning
+that it can execute multiple threads on different CPUs in parallel.
+
+Windows ensures
+that those threads are distributed over your available cores. This way you can perform multiple tasks at once and improve scalability
+
+The Thread class can be found in the System.Threading namespace. This class enables you to
+create new treads, manage their priority, and get their status.
+
+The Thread class isn’t something that you should use in your applications, except when you
+have special needs. However, when using the Thread class you have control over all configuration options. You can, for example, specify the priority of your thread, tell Windows that your
+thread is long running, or configure other advanced options.
+
+Both your process and your thread have a priority. Assigning a low priority is useful for
+applications such as a screen saver. Such an application shouldn’t compete with other applications for CPU time. A higher-priority thread should be used only when it’s absolutely necessary. A new thread is assigned a priority of Normal, which is okay for almost all scenarios.
+
+Another thing that’s important to know about threads is the difference between foreground and background threads. Foreground threads can be used to keep an application
+alive. Only when all foreground threads end does the common language runtime (CLR) shut
+down your application. Background threads are then terminated.
+
+To stop a thread, you can use the Thread.Abort method. However, because this method
+is executed by another thread, it can happen at any time. When it happens, a ThreadAbortException is thrown on the target thread. This can potentially leave a corrupt state and make
+your application unusable.
+
+**Thread pools**
+
+When working directly with the Thread class, you create a new thread each time, and the
+thread dies when you’re finished with it. The creation of a thread, however, is something that
+costs some time and resources.
+A thread pool is created to reuse those threads. Instead of letting a thread die, you send it back to the pool where it can be
+reused whenever a request comes in. When you work with a thread pool from .NET, you queue a work item that is then picked
+up by an available thread from the pool.
+
+Because the thread pool limits the available number of threads, you do get a lesser degree
+of parallelism than using the regular Thread class.
+The thread pool automatically manages the amount of threads it needs to keep around.
+When it is first created, it starts out empty. As a request comes in, it creates additional threads
+to handle those requests. As long as it can finish an operation before a new one comes in,
+no new threads have to be created. If new threads are no longer in use after some time, the
+thread pool can kill those threads so they no longer use any resources.
+
+One thing to be aware of is that because threads are being reused, they also reuse their
+local state. You may not rely on state that can potentially be shared between multiple
+operations
+
+
+**Tasks**
+The Thread class is used for creating and manipulating a thread in Windows. A Task represents some asynchronous operation and is part of the Task Parallel Library, a set of APIs for running tasks asynchronously and in parallel.
+
+A task is an object that represents some work that should be done. The task can tell you if the work is completed and if the operation returns a result, the task gives you the result.
+
+A Task is a higher level concept than Thread.
+ The task can return a result. There is no direct mechanism to return the result from a thread.
+Task supports cancellation through the use of cancellation tokens. But Thread doesn't.
+
+Queuing a work item to a thread pool can be useful, but it has its shortcomings. There is no
+built-in way to know when the operation has finished and what the return value is.
+
+A Task is an object that represents some work that should be done. The Task can tell you if the work is completed and
+if the operation returns a result, the Task gives you the result.
+
+A task scheduler is responsible for starting the Task and managing it. By default, the Task
+scheduler uses threads from the thread pool to execute the Task.
+Tasks can be used to make your application more responsive. If the thread that manages
+the user interface offloads work to another thread from the thread pool, it can keep processing user events and ensure that the application can still be used. But it doesn’t help with scalability. If a thread receives a web request and it would start a new Task, it would just consume
+another thread from the thread pool while the original thread waits for results.
+Executing a Task on another thread makes sense only if you want to keep the user interface thread free for other work or if you want to parallelize your work on to multiple
+processors.
+Attempting to read the Result property on a Task will force the thread that’s trying to
+read the result to wait until the Task is finished before continuing. As long as the Task has not
+finished, it is impossible to give the result. If the Task is not finished, this call will block the
+current thread.
+Because of the object-oriented nature of the Task object, one thing you can do is add a
+continuation task. This means that you want another operation to execute as soon as the Task
+finishes.
+
+The ContinueWith method has a couple of overloads that you can use to configure when
+the continuation will run. This way you can add different continuation methods that will run
+when an exception happens, the Task is canceled, or the Task completes successfully.
+Next to continuation Tasks, a Task can also have several child Tasks. The parent Task finishes when all the child tasks are ready.
+
+To create multiple tasks you can use a TaskFactory. A TaskFactory is created with a certain configuration and can then be used to create Tasks with that configuration.
+
+
+**Using the Parallel class**
+
+The System.Threading.Tasks namespace also contains another class that can be used for parallel processing. The Parallel class has a couple of static methods—For, ForEach, and Invoke—
+that you can use to parallelize work.
+
+Parallelism involves taking a certain task and splitting it into a set of related tasks that can
+be executed concurrently. This also means that you shouldn’t go through your code to replace all your loops with parallel loops. You should use the Parallel class only when your code
+doesn’t have to be executed sequentially.
+
+Increasing performance with parallel processing happens only when you have a lot of
+work to be done that can be executed in parallel. For smaller work sets or for work that has to
+synchronize access to resources, using the Parallel class can hurt performance.
+
+**Using async and await**
+When your application is executing an I/O operation on the primary application thread,
+Windows notices that your thread is waiting for the I/O operation to complete. Maybe you
+are accessing some file on disk or over the network, and this could take some time.
+Because of this, Windows pauses your thread so that it doesn’t use any CPU resources. But
+while doing this, it still uses memory, and the thread can’t be used to serve other requests,
+which in turn will lead to new threads being created if requests come in.
+Asynchronous code solves this problem. Instead of blocking your thread until the I/O operation finishes, you get back a Task object that represents the result of the asynchronous operation.
+By setting a continuation on this Task, you can continue when the I/O is done. In the
+meantime, your thread is available for other work. When the I/O operation finishes, Windows
+notifies the runtime and the continuation Task is scheduled on the thread pool.
+
+You use the async keyword to mark a method for asynchronous operations. This way,
+you signal to the compiler that something asynchronous is going to happen. The compiler
+responds to this by transforming your code into a state machine. 
+
+
+
+
+
